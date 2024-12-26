@@ -1,116 +1,108 @@
+## Data Loading to Country-Specific Tables in Snowflake
 
-```markdown
-# Snowflake Data Loader
-
-This Python script loads customer data from a pipe-delimited file into a Snowflake staging table. It processes the file, converts necessary columns (especially dates), and inserts the data into the Snowflake database.
+This Python script loads data from a `.txt` file into Snowflake tables that are dynamically created based on the country specified in the data. It uses `pandas` for data manipulation and `SQLAlchemy` for connecting to Snowflake. The data is first validated, transformed, and filtered before being inserted into the respective country tables.
 
 ## Prerequisites
 
-Before running the script, make sure you have the following:
+Before running the script, ensure that you have the following installed:
 
-- **Python** 3.x installed.
-- **Snowflake account** and credentials (username, password, account, warehouse, database, schema, role).
-- **Pandas** library for data manipulation.
-- **SQLAlchemy** and **Snowflake SQLAlchemy** for Snowflake connection.
-- **dotenv** for environment variable management.
-- **Snowflake staging table** (`Staging_Customers`) already created in your database.
+- Python 3.x
+- `pandas` for data manipulation
+- `sqlalchemy` for connecting to Snowflake
+- `snowflake-sqlalchemy` for Snowflake SQLAlchemy support
+- `python-dotenv` for loading environment variables from a `.env` file
 
-### Install Dependencies
-
-First, install the necessary Python dependencies. You can do this by running the following command:
+Install the required Python packages:
 
 ```bash
 pip install pandas sqlalchemy snowflake-sqlalchemy python-dotenv
 ```
 
-## Environment Setup
+You will also need to set up a `.env` file with the following variables:
 
-1. **Create a `.env` file**: This file will store your Snowflake credentials securely. Ensure it is in the same directory as the Python script. Here's an example of the `.env` file:
+```
+SNOWFLAKE_USER=<your_snowflake_username>
+SNOWFLAKE_PASSWORD=<your_snowflake_password>
+SNOWFLAKE_ACCOUNT=<your_snowflake_account>
+SNOWFLAKE_WAREHOUSE=<your_snowflake_warehouse>
+SNOWFLAKE_DATABASE=<your_snowflake_database>
+SNOWFLAKE_SCHEMA=<your_snowflake_schema>
+SNOWFLAKE_ROLE=<your_snowflake_role>
+```
 
-   ```env
-   SNOWFLAKE_USER=<your_snowflake_user>
-   SNOWFLAKE_PASSWORD=<your_snowflake_password>
-   SNOWFLAKE_ACCOUNT=<your_snowflake_account>
-   SNOWFLAKE_WAREHOUSE=<your_snowflake_warehouse>
-   SNOWFLAKE_DATABASE=<your_snowflake_database>
-   SNOWFLAKE_SCHEMA=<your_snowflake_schema>
-   SNOWFLAKE_ROLE=<your_snowflake_role>
-   ```
+## File Format
 
-   Replace the placeholders with your actual Snowflake credentials.
+The script expects the input file to be a `.txt` file with a `|` delimiter. The data should have the following columns:
 
-2. **Staging Table in Snowflake**: Ensure that the staging table (`Staging_Customers`) exists in the Snowflake schema and matches the columns expected by the script. The required columns should be:
+- `Record_Type`: Indicates whether the record is a header (`H`) or data (`D`).
+- `Customer_Name`: Name of the customer.
+- `CustomerID`: Unique identifier for the customer.
+- `CustomerOpenDate`: Date the customer was created in `YYYYMMDD` format.
+- `LastConsultedDate`: Last consultation date in `YYYYMMDD` format.
+- `VaccinationType`: Type of vaccination.
+- `Doctor`: Name of the doctor.
+- `State`: The state or region of the customer.
+- `Country`: The country of the customer.
+- `PostCode`: Postal code.
+- `DateofBirth`: Date of birth in `DDMMYYYY` format.
+- `ActiveCustomer`: A status indicator for whether the customer is active (`A` for active).
 
-   - `Record_Type`
-   - `Customer_Name`
-   - `CustomerID`
-   - `CustomerOpenDate`
-   - `LastConsultedDate`
-   - `VaccinationType`
-   - `Doctor`
-   - `State`
-   - `Country`
-   - `PostCode`
-   - `DateofBirth`
-   - `ActiveCustomer`
+Example of data format:
 
-   Example SQL to create the table:
-
-   ```sql
-   CREATE OR REPLACE TABLE Staging_Customers (
-       Record_Type STRING,
-       Customer_Name STRING,
-       CustomerID STRING,
-       CustomerOpenDate DATE,
-       LastConsultedDate DATE,
-       VaccinationType STRING,
-       Doctor STRING,
-       State STRING,
-       Country STRING,
-       PostCode STRING,
-       DateofBirth DATE,
-       ActiveCustomer STRING
-   );
-   ```
-
-## Running the Script
-
-1. **Prepare Your Data File**: Ensure your data file is in the correct format and available at the location specified in the `file_path` variable in the script (default is `'data/hospital_data.txt'`).
-
-   Example of the expected format (pipe `|` delimited):
-
-   ```
-   H|Customer_Name|CustomerID|CustomerOpenDate|LastConsultedDate|VaccinationType|Doctor|State|Country|PostCode|DateofBirth|ActiveCustomer
-   D|Yael|1|20101012|20121013|sput5|Piper Sheppard|Lange| |75532|06031987|A
-   D|Xaviera|2|20101112|20210329|sput5|Savannah Keith|Sint|Peru|3604|26011999|A
-   D|Matthew|3|20100323|20160202|sput5|Justin Leblanc|Marlb|Peru|18518|17121996|A
-   ```
-
-2. **Run the Script**: After setting up the environment and ensuring the data file is ready, you can run the script by executing:
-
-   ```bash
-   python load_to_snowflake.py
-   ```
-
-   This will:
-   - Read the data from the file.
-   - Parse and transform the necessary columns (especially date columns).
-   - Insert the valid records into the Snowflake staging table (`Staging_Customers`).
+```
+H|Customer_Name|CustomerID|CustomerOpenDate|LastConsultedDate|VaccinationType|Doctor|State|Country|PostCode|DateofBirth|ActiveCustomer
+D|Yael|1|20101012|20121013|sput5|Piper Sheppard|Lange| |75532|06031987|A
+D|Xaviera|2|20101112|20210329|sput5|Savannah Keith|Sint|Peru|3604|26011999|A
+D|Matthew|3|20100323|20160202|sput5|Justin Leblanc|Marlb|Peru|18518|17121996|A
+```
 
 ## Script Overview
 
-1. **`load_data_to_staging`**: This function reads the pipe-delimited `.txt` file, processes the data (including date conversion), and inserts the valid rows into the Snowflake staging table.
+### `load_data_to_country_tables(file_path, conn)`
 
-2. **`snow_connector`**: This function handles the connection to Snowflake using SQLAlchemy and the Snowflake SQLAlchemy connector. It establishes the connection and returns the engine and connection object.
+This function does the following:
+1. Reads the input file (`file_path`) into a pandas DataFrame.
+2. Validates that the file has the correct number of columns.
+3. Filters out the header records (`Record_Type` == 'H') and focuses on the data records (`Record_Type` == 'D').
+4. Cleans the data by:
+   - Removing records with missing or empty country values.
+   - Normalizing the country names to title case.
+   - Converting date columns to `datetime` format.
+5. Dynamically loads the data into Snowflake tables, creating country-specific table names like `Table_<Country>` and appending the data.
 
-3. **Environment Variables**: The script uses environment variables stored in a `.env` file for Snowflake credentials. This keeps your sensitive credentials secure and avoids hardcoding them into the script.
+### `snow_connector(account, user, password, database, schema, warehouse, role)`
+
+This function connects to Snowflake using the provided credentials and returns a connection object.
+
+### `main()`
+
+The main function does the following:
+1. Loads environment variables from the `.env` file.
+2. Establishes a connection to Snowflake.
+3. Loads the data from the specified file into the country-specific tables in Snowflake.
+4. Closes the connection after the data load is complete.
+
+## Running the Script
+
+1. Create a `.env` file with your Snowflake credentials and save it in the root of your project directory.
+2. Place your input `.txt` file (e.g., `hospital_data.txt`) in the `data/` directory (or update the `file_path` variable accordingly).
+3. Run the script using the following command:
+
+```bash
+python snowflake-etl..py
+```
+
+This will load the data into your Snowflake country-specific tables.
 
 ## Error Handling
 
-- **Invalid Date Formats**: Any invalid date fields (such as `20201232` in `CustomerOpenDate`) will be converted to `NaT`. You will receive a warning message in the terminal.
-- **Missing Columns**: If the data file has missing or extra columns compared to the expected format, the script will issue a warning.
+The script includes error handling for the following scenarios:
+- File reading issues (e.g., bad lines).
+- Invalid column formats.
+- Date conversion errors.
+- Snowflake connection or data loading errors.
 
-## Troubleshooting
 
-- **Missing Dependencies**: If you get errors about missing packages, run `pip install -r requirements.txt` to install them.
-- **Connection Errors**: Ensure your Snowflake credentials in the `.env` file are correct and that your network allows access to Snowflake.
+```
+
+Make sure to update the `file_path` variable to match the location of your data file when running the script.
